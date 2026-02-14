@@ -117,7 +117,6 @@ class PredictionResult(BaseModel):
     confidence_score: float = 0.0 # 0-1 metrics
     external_analysis_summary: str = ""
     referee_name: str = "Autodetectado"
-    debug_info: str = ""
 
 class MatchOutcome(BaseModel):
     match_id: str
