@@ -166,6 +166,8 @@ else:
         with st.sidebar.expander("🛠️ INFO DE VERSIÓN (DEBUG)"):
             import inspect
             st.code(f"App Version: 6.25.3\nPoisson File: {inspect.getfile(predictor.poisson.__class__)}\nPredictor File: {inspect.getfile(predictor.__class__)}")
+            if st.session_state.get("last_pred"):
+                st.code(f"DEBUG_LOG: {st.session_state.last_pred.debug_info}")
 
         st.markdown('<p style="color: #fdffcc; font-size: 0.9rem;">🤖 El sistema accederá automáticamente a SportsGambler para alineaciones y fuentes oficiales para árbitros.</p>', unsafe_allow_html=True)
 

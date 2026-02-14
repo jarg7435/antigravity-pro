@@ -66,7 +66,8 @@ class Predictor:
             predicted_shots_on_target=f"🏠 {stats['shots_on_target'][0]} | ✈️ {stats['shots_on_target'][1]}",
             confidence_score=self._calc_confidence(final_home, final_away),
             external_analysis_summary=analysis_text,
-            referee_name=match.referee.name if match.referee else "No asignado"
+            referee_name=match.referee.name if match.referee else "No asignado",
+            debug_info=f"H_LAMBDA: {h_lambda} | A_LAMBDA: {a_lambda} | TGE: {h_lambda + a_lambda} | BPA_H: {bpa_h} | BPA_A: {bpa_a}"
         )
 
         # 6. Value Betting Detection
