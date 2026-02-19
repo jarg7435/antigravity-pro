@@ -52,7 +52,9 @@ class MockDataProvider(DataProvider):
             "Valencia", "Getafe", "Rayo Vallecano", "Levante", "Real Oviedo"
         ]
         for name in la_liga_teams:
-            if name == "FC Barcelona":
+            if name == "Elche":
+                teams[name] = self._create_team(name, "La Liga", ["Dituro", "Mario Gaspar", "Bigas", "Barzic", "Salinas", "Febas", "Nico Castro", "Nico Fernández", "Josan", "Mourad", "Oscar Plano"], base_rating=7.4)
+            elif name == "FC Barcelona":
                 teams[name] = self._create_team(name, "La Liga", ["Ter Stegen", "Koundé", "Cubarsí", "Iñigo Martínez", "Balde", "Casadó", "Pedri", "Dani Olmo", "Lamine Yamal", "Lewandowski", "Raphinha"], base_rating=9.5, avg_xg=2.5, avg_xg_c=0.8)
             elif name == "Real Madrid":
                 teams[name] = self._create_team(name, "La Liga", ["Courtois", "Carvajal", "Rudiger", "Militao", "Mendy", "Valverde", "Tchouameni", "Bellingham", "Vinicius Jr", "Mbappé", "Rodrygo"], base_rating=9.4, avg_xg=2.6, avg_xg_c=0.75)
@@ -218,8 +220,14 @@ class MockDataProvider(DataProvider):
         )
     
     def _create_dummy_team(self, name, league="Unknown", base_rating=7.0):
-        # Generic fill for non-star teams
-        return self._create_team(name, league, [f"{name} Fwd", f"{name} Mid", f"{name} Def", f"{name} GK", f"{name} Coach"], base_rating=base_rating, avg_xg=1.2, avg_xg_c=1.4)
+        # Generic fill for non-star teams - Always 11 players for a "coherent study"
+        key_players = [
+            f"{name} GK", 
+            f"{name} LD", f"{name} CT1", f"{name} CT2", f"{name} LI",
+            f"{name} MC1", f"{name} MC2", f"{name} MO",
+            f"{name} ED", f"{name} DC", f"{name} EI"
+        ]
+        return self._create_team(name, league, key_players, base_rating=base_rating, avg_xg=1.2, avg_xg_c=1.4)
     
     def get_last_match_lineup(self, team_name: str) -> List[str]:
         """
