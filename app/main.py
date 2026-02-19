@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import streamlit as st
 
-# LAGEMA JARG74 - VERSION 6.60.0 - GLOBAL EXPANSION RELEASE
+# LAGEMA JARG74 - VERSION 6.70.0 - GLOBAL GENERIC RELEASE
 SECRET_CODE = "1234"
 # Force rebuild comment: f"Resetting system at {os.environ.get('PORT', '0')}"
 
@@ -73,7 +73,7 @@ if os.path.exists(css_path):
 
 # Initialize Services
 @st.cache_resource
-def get_services(version: str = "6.60.0 (Global Expansion)"):
+def get_services(version: str = "6.70.0 (Global Generic)"):
     # NUCLEAR RELOAD: Ensure Streamlit Cloud sees disk changes
     import importlib
     import src.models.base
@@ -111,7 +111,7 @@ def get_services(version: str = "6.60.0 (Global Expansion)"):
     return data_provider, db_manager, bpa_engine, predictor, validator, bankroll_manager, report_engine
 
 # --- SERVICE INITIALIZATION ---
-CURRENT_VERSION = "6.60.0"
+CURRENT_VERSION = "6.70.0"
 data_provider, db_manager, bpa_engine, predictor, validator, bankroll_manager, report_engine = get_services(CURRENT_VERSION)
 
 # --- MAIN LAYOUT ---
@@ -208,7 +208,7 @@ else:
                         st.rerun()
 
         with st.sidebar.expander("🛠️ INFO DE VERSIÓN"):
-            st.markdown(f"**App Version:** 6.60.0 (Global Expansion)")
+            st.markdown(f"**App Version:** 6.70.0 (Global Generic)")
             st.markdown("*Módulos de IA re-calibrados y estables.*")
 
         st.markdown('<p style="color: #fdffcc; font-size: 0.9rem;">🤖 El sistema accederá automáticamente a fuentes oficiales para árbitros (RFEF, Premier, etc.).</p>', unsafe_allow_html=True)

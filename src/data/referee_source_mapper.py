@@ -11,13 +11,14 @@ class RefereeSourceMapper:
     Maps leagues to their official referee appointment sources.
     """
     
+    BIG_5 = ["La Liga", "Premier League", "Serie A", "Bundesliga", "Ligue 1"]
+    
     LEAGUE_SOURCES = {
         "La Liga": "https://www.rfef.es/noticias/arbitros/designaciones",
         "Premier League": "https://www.premierleague.com/referees/overview",
         "Serie A": "https://www.aia-figc.it/designazioni/cana/",
         "Bundesliga": "https://www.dfb.de/sportl-strukturen/schiedsrichter/ansetzungen/",
         "Ligue 1": "http://arbitrezvous.blogspot.com/",
-        "Conference League": "https://www.uefa.com/uefaconferenceleague/matches/",
     }
     
     @classmethod
@@ -35,10 +36,9 @@ class RefereeSourceMapper:
             return BundesligaRefereeScraper()
         elif league == "Ligue 1":
             return Ligue1RefereeScraper()
-        elif league == "Conference League":
-            return ConferenceLeagueRefereeScraper()
         else:
-            return FallbackRefereeScraper()
+            # Generic international pool for all other matches (UEFA, Extra, Mixta)
+            return InternationalRefereePoolScraper()
 
 
 class BaseRefereeScraper:
@@ -356,17 +356,11 @@ class Ligue1RefereeScraper(BaseRefereeScraper):
         }
 
 
-class ConferenceLeagueRefereeScraper(BaseRefereeScraper):
-    """Scraper for Conference League referees."""
+class InternationalRefereePoolScraper(BaseRefereeScraper):
+    """Generic pool for international and other matches."""
     
     def fetch_referee(self, home_team: str, away_team: str, match_date: datetime) -> Dict:
-        # For UEFA competitions, we use a more generic fallback pool of international refs
-        # until a robust UEFA scraper is implemented.
-        try:
-            # UEFA official site is AJAX heavy, we use a realistic international pool
-            return self._fallback_referee()
-        except Exception:
-            return self._fallback_referee()
+        return self._fallback_referee()
             
     def _fallback_referee(self) -> Dict:
         import random
@@ -374,14 +368,15 @@ class ConferenceLeagueRefereeScraper(BaseRefereeScraper):
             {'name': 'Glenn Nyberg', 'strictness': RefereeStrictness.MEDIUM, 'avg': 4.1},
             {'name': 'Sandro Schärer', 'strictness': RefereeStrictness.HIGH, 'avg': 4.8},
             {'name': 'Erik Lambrechts', 'strictness': RefereeStrictness.MEDIUM, 'avg': 3.9},
-            {'name': 'Donatas Rumšas', 'strictness': RefereeStrictness.LOW, 'avg': 3.4}
+            {'name': 'Donatas Rumšas', 'strictness': RefereeStrictness.LOW, 'avg': 3.4},
+            {'name': 'Irati Gallastegui', 'strictness': RefereeStrictness.MEDIUM, 'avg': 4.2}
         ]
         ref = random.choice(pool)
         return {
             'name': ref['name'],
             'strictness': ref['strictness'],
             'avg_cards': ref['avg'],
-            'source': 'UEFA International Pool'
+            'source': 'International Pool'
         }
 
 
