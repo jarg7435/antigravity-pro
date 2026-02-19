@@ -49,7 +49,8 @@ class AutoLineupFetcher:
             "Bundesliga": "bundesliga",
             "Ligue 1": "ligue-1",
             "Champions League": "champions-league",
-            "Europa League": "europa-league"
+            "Europa League": "europa-league",
+            "Liga Mixta (Combinada)": "la-liga" # Default to La Liga for Mixta search as a starting point
         }
         
         league_slug = league_map.get(league, league.lower().replace(" ", "-"))

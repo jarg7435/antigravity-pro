@@ -72,7 +72,7 @@ if os.path.exists(css_path):
 
 # Initialize Services
 @st.cache_resource
-def get_services(version: str = "6.25.4 (Nuclear Reload)"):
+def get_services(version: str = "6.25.6 (Deep Reset)"):
     # NUCLEAR RELOAD: Ensure Streamlit Cloud sees disk changes
     import importlib
     import src.models.base
@@ -109,7 +109,9 @@ def get_services(version: str = "6.25.4 (Nuclear Reload)"):
     
     return data_provider, db_manager, bpa_engine, predictor, validator, bankroll_manager, report_engine
 
-data_provider, db_manager, bpa_engine, predictor, validator, bankroll_manager, report_engine = get_services()
+# --- SERVICE INITIALIZATION ---
+CURRENT_VERSION = "6.25.6"
+data_provider, db_manager, bpa_engine, predictor, validator, bankroll_manager, report_engine = get_services(CURRENT_VERSION)
 
 # --- MAIN LAYOUT ---
 render_header()
@@ -133,6 +135,14 @@ available_teams = data_provider.get_teams_by_league(league_key)
 
 if not available_teams and selected_league != "Liga Extra (Manual)":
     st.warning(f"No hay equipos disponibles para {selected_league}.")
+    # Deep Debug Info
+    with st.expander("🔍 Debug de Datos (Solo Emergencia)"):
+        st.write(f"League Key: '{league_key}'")
+        st.write(f"Provider: {type(data_provider).__name__}")
+        if hasattr(data_provider, 'teams_db'):
+            st.write(f"Teams in DB: {len(data_provider.teams_db)}")
+            st.write(f"Sample Teams: {list(data_provider.teams_db.keys())[:3]}")
+        st.write(f"Test call 'mixta': {len(data_provider.get_teams_by_league('mixta'))}")
 else:
     # --- TEAM SELECTION ---
     with st.container():
@@ -185,7 +195,7 @@ else:
         st.markdown(f'<h4 style="color: #fdffcc;">👨‍⚖️ Árbitro: {current_ref_name} <span style="font-size: 0.8rem; color: #888;">({ref_source})</span></h4>', unsafe_allow_html=True)
         
         with st.sidebar.expander("🛠️ INFO DE VERSIÓN"):
-            st.markdown(f"**App Version:** 6.25.4 (Nuclear Reload)")
+            st.markdown(f"**App Version:** 6.25.5 (Mixta Fix Applied)")
             st.markdown("*Módulos de IA re-calibrados y estables.*")
 
         st.markdown('<p style="color: #fdffcc; font-size: 0.9rem;">🤖 El sistema accederá automáticamente a SportsGambler para alineaciones y fuentes oficiales para árbitros.</p>', unsafe_allow_html=True)
