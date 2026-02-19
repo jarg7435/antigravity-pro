@@ -173,6 +173,55 @@ class AutoLineupFetcher:
             
         except Exception as e:
             return {'error': f'Search failed: {str(e)}', 'home': [], 'away': []}
+
+    def fetch_injuries_auto(self, league: str) -> Dict[str, List[Dict]]:
+        """
+        Scrapes the injury report for a specific league from SportsGambler.
+        """
+        league_map = {
+            "La Liga": "spain-la-liga",
+            "Premier League": "england-premier-league",
+            "Serie A": "italy-serie-a",
+            "Bundesliga": "germany-bundesliga",
+            "Ligue 1": "france-ligue-1"
+        }
+        
+        league_slug = league_map.get(league)
+        if not league_slug:
+            return {}
+            
+        url = f"{self.BASE_URL}/injuries/football/{league_slug}/"
+        print(f"🔍 Fetching injuries from: {url}")
+        
+        try:
+            resp = requests.get(url, headers=self.headers, timeout=10)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            injuries_db = {}
+            # SportsGambler structure: h3 with team name, followed by table of injuries
+            current_team = None
+            
+            for elem in soup.find_all(['h3', 'tr']):
+                if elem.name == 'h3':
+                    current_team = elem.get_text().strip()
+                    injuries_db[current_team] = []
+                elif elem.name == 'tr' and current_team:
+                    cells = elem.find_all('td')
+                    if len(cells) >= 3:
+                        player = cells[0].get_text().strip()
+                        reason = cells[1].get_text().strip()
+                        status = cells[2].get_text().strip()
+                        if player and player != "Player":
+                            injuries_db[current_team].append({
+                                'player': player,
+                                'reason': reason,
+                                'status': status
+                            })
+            return injuries_db
+        except Exception as e:
+            print(f"  ❌ Injury fetch failed: {e}")
+            return {}
     
     def _map_to_rosters(self, extracted_names: set, home_team: str, away_team: str) -> Dict:
         """

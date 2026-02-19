@@ -56,11 +56,21 @@ class ExternalAnalyst:
 
     def analyze_match(self, match: Match) -> str:
         """
-        Generates a deep dive textual report.
+        Generates a deep dive textual report using real-time data.
         """
+        # Fetch real injuries if available (via SportsGambler)
+        real_injuries = {}
+        try:
+            from src.logic.lineup_fetcher import LineupFetcher
+            from src.data.mock_provider import MockDataProvider
+            fetcher = LineupFetcher(MockDataProvider())
+            real_injuries = fetcher.fetch_injuries(match.competition)
+        except:
+            pass
+
         # 1. Local Press Analysis
-        home_news = self._scan_local_press(match.home_team)
-        away_news = self._scan_local_press(match.away_team)
+        home_news = self._scan_local_press(match.home_team, real_injuries)
+        away_news = self._scan_local_press(match.away_team, real_injuries)
         
         # 2. National Context
         nat_context = self._scan_national_press(match.home_team) # Assuming same country mostly
@@ -72,6 +82,7 @@ class ExternalAnalyst:
         h_papers = ', '.join(self._get_papers(match.home_team.name))
         a_papers = ', '.join(self._get_papers(match.away_team.name))
         
+        country_name = str(self._get_country(match.home_team.name))
         summary = f"""
         ### 🗞️ PRENSA LOCAL Y ENTORNO (50 min antes)
         
@@ -83,7 +94,7 @@ class ExternalAnalyst:
         *Fuentes Detectadas: {a_papers}*
         {away_news}
         
-        ### 🌍 CONTEXTO NACIONAL ({self._get_country(match.home_team.name).upper()})
+        ### 🌍 CONTEXTO NACIONAL ({country_name.upper()})
         {nat_context}
         
         ### ⛈️ CLIMA Y CONDICIONES
@@ -128,40 +139,54 @@ class ExternalAnalyst:
     def _get_country(self, team_name): return self._get_context(team_name)["country"]
     def _get_papers(self, team_name): return self._get_context(team_name)["papers"]
 
-    def _scan_local_press(self, team: Team) -> str:
-        # 1. Identify Star Players and Key Pieces
-        stars = [p for p in team.players if p.rating_last_5 >= 8.5]
-        key_players = [p for p in team.players if 7.5 <= p.rating_last_5 < 8.5]
+    def _scan_local_press(self, team: Team, real_injuries: dict) -> str:
+        # 1. Try to find real injuries in scraped data
+        found_real = []
+        for team_name_scraped, players in real_injuries.items():
+            # Fuzzy match team name
+            if team.name.lower() in team_name_scraped.lower() or team_name_scraped.lower() in team.name.lower():
+                for p_data in players:
+                    found_real.append(f"🚩 **{p_data['player']}**: {p_data['reason']} ({p_data['status']})")
         
-        # 2. Identify Injuries and Doubts
-        bajas = [p for p in team.players if p.status == "Baja"] # Using string for robustness
-        dudas = [p for p in team.players if p.status == "Duda"]
-        
-        # 3. Dynamic Reports
         reports = []
-        
-        # Health Section
-        if bajas:
-            p_names = ", ".join([p.name for p in bajas[:2]])
-            reports.append(f"❌ **Baja Sensible:** La prensa local lamenta la ausencia de {p_names}. El esquema táctico de {team.name} sufrirá sin ellos.")
-        elif dudas:
-            p_names = ", ".join([p.name for p in dudas[:2]])
-            reports.append(f"⚠️ **Duda de última hora:** {p_names} están entre algodones. El cuerpo médico decidirá tras el calentamiento.")
+        if found_real:
+            reports.append("📰 **Última hora (Web/Prensa):**")
+            # Slice safely
+            count = min(4, len(found_real))
+            for i in range(count):
+                reports.append(found_real[i])
         else:
-            reports.append(f"✅ **Sin Bajas Relevantes:** El cuerpo médico da luz verde. La prensa destaca la plenitud física de la plantilla.")
+            # Fallback to smart roster analysis if no live news found
+            # Identify Star Players and Key Pieces
+            stars = [p for p in team.players if p.rating_last_5 >= 8.5]
+            key_players = [p for p in team.players if 7.5 <= p.rating_last_5 < 8.5]
+            
+            # Identify Injuries and Doubts
+            bajas = [p for p in team.players if p.status == "Baja"]
+            dudas = [p for p in team.players if p.status == "Duda"]
+            
+            # Health Section
+            if bajas:
+                p_names = ", ".join([p.name for p in bajas[:2]])
+                reports.append(f"❌ **Baja Sensible:** La prensa local lamenta la ausencia de {p_names}. El esquema táctico de {team.name} sufrirá sin ellos.")
+            elif dudas:
+                p_names = ", ".join([p.name for p in dudas[:2]])
+                reports.append(f"⚠️ **Duda de última hora:** {p_names} están entre algodones. El cuerpo médico decidirá tras el calentamiento.")
+            else:
+                reports.append(f"✅ **Sin Bajas Relevantes:** El cuerpo médico da luz verde. La prensa destaca la plenitud física de la plantilla.")
 
-        # Performance Section
-        if stars:
-            star = random.choice(stars)
-            reports.append(f"⭐ **En el foco:** '{star.name} es imparable', publica la prensa local tras su rating de {star.rating_last_5} en los últimos encuentros.")
-        elif key_players:
-            key = random.choice(key_players)
-            reports.append(f"📈 **Consistencia:** Destacan el papel de {key.name} como columna vertebral del equipo en este tramo de la temporada.")
+            # Performance Section
+            if stars:
+                star = random.choice(stars)
+                reports.append(f"⭐ **En el foco:** '{star.name} es imparable', publica la prensa local tras su rating de {star.rating_last_5} en los últimos encuentros.")
+            elif key_players:
+                key = random.choice(key_players)
+                reports.append(f"📈 **Consistencia:** Destacan el papel de {key.name} como columna vertebral del equipo.")
         
         # Atmosphere Section
         atmospheres = [
-            f"💪 **Ambiente:** 'Es una final', titulan los medios locales. Máxima motivación en el vestuario de {team.name}.",
-            f"🔄 **Táctica:** Se especula con un cambio de sistema para potenciar las bandas.",
+            f"💪 **Ambiente:** 'Es una final', titulan los medios locales en {self._get_city(team.name)}.",
+            f"🔄 **Táctica:** Se especula con ajustes específicos para neutralizar al rival.",
             f"📢 **Presión:** El entorno del club exige una victoria tras los últimos resultados."
         ]
         reports.append(random.choice(atmospheres))

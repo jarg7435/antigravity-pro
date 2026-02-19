@@ -47,6 +47,10 @@ class LineupFetcher:
         
         return result
 
+    def fetch_injuries(self, league: str) -> Dict:
+        """Fetch injury report for a league."""
+        return self.auto_fetcher.fetch_injuries_auto(league)
+
     def fetch_from_url(self, url: str, home_team_name: str, away_team_name: str) -> dict:
         """
         Scrapes a sports site for lineups using requests and BeautifulSoup.
