@@ -22,7 +22,7 @@ def render_header():
     st.markdown("""
         <div style="text-align: center; padding: 40px 0; background: linear-gradient(90deg, rgba(0,212,255,0.05) 0%, rgba(0,86,179,0.05) 100%); border-radius: 20px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.05);">
             <h1 style="margin-bottom: 0; font-family: 'Outfit', sans-serif; font-weight: 900; letter-spacing: -1px; background: linear-gradient(90deg, #fff, #00d4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🛡️ LAGEMA JARG74</h1>
-            <p style="margin-top: 5px; color: #fdffcc; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; font-size: 0.8rem;">Capa de Inteligencia Predictiva Avanzada • V6.50.0 (Combined Bets)</p>
+            <p style="margin-top: 5px; color: #fdffcc; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; font-size: 0.8rem;">Capa de Inteligencia Predictiva Avanzada • V6.55.0 (Validation Sync)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -289,11 +289,12 @@ def render_result_validation_form():
         home_score = c1.number_input("Goles Local", min_value=0, value=0)
         away_score = c2.number_input("Goles Visitante", min_value=0, value=0)
         
-        st.markdown("**Estadísticas Reales**")
-        stats_c1, stats_c2, stats_c3 = st.columns(3)
-        corners = stats_c1.number_input("Córners Totales", 0, 20, 5)
-        cards = stats_c2.number_input("Tarjetas Totales", 0, 15, 3)
-        shots = stats_c3.number_input("Remates Totales", 0, 40, 10)
+        st.markdown("**Estadísticas Reales (Totales)**")
+        stats_c1, stats_c2, stats_c3, stats_c4 = st.columns(4)
+        corners = stats_c1.number_input("Córners", 0, 30, 8)
+        cards = stats_c2.number_input("Tarjetas", 0, 20, 4)
+        shots = stats_c3.number_input("Remates", 0, 50, 20)
+        shots_on_target = stats_c4.number_input("Remates a Portería", 0, 30, 8)
         
         # Determine Winner
         winner = "EMPATE"
@@ -316,6 +317,7 @@ def render_result_validation_form():
                 "corners": corners,
                 "cards": cards,
                 "shots": shots,
+                "shots_on_target": shots_on_target,
                 "winner": winner
             }
     return None

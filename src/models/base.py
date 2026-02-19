@@ -128,4 +128,6 @@ class MatchOutcome(BaseModel):
     away_cards: int
     home_shots: int
     away_shots: int
+    home_shots_on_target: int = 0
+    away_shots_on_target: int = 0
     actual_winner: str # "LOCAL", "VISITANTE", "EMPATE"
