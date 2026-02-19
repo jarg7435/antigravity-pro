@@ -129,25 +129,44 @@ class ExternalAnalyst:
     def _get_papers(self, team_name): return self._get_context(team_name)["papers"]
 
     def _scan_local_press(self, team: Team) -> str:
-        # Simulate finding specific topics: Injuries, Signings, Sentiment
+        # 1. Identify Star Players and Key Pieces
+        stars = [p for p in team.players if p.rating_last_5 >= 8.5]
+        key_players = [p for p in team.players if 7.5 <= p.rating_last_5 < 8.5]
         
-        # Templates for "Injuries" (Lesionados)
-        inj_templates = [
-            f"✅ **Altas:** El cuerpo médico da luz verde. Se espera que el equipo titular esté al completo.",
-            f"⚠️ **Duda:** Preocupación por molestias en el entrenamiento de ayer. Podría haber rotaciones.",
-            f"❌ **Baja:** Confirmada la ausencia de un jugador clave por sobrecarga muscular.",
-            f"🚑 **Enfermería:** Semana tranquila en {team.name}, sin nuevos lesionados."
+        # 2. Identify Injuries and Doubts
+        bajas = [p for p in team.players if p.status == "Baja"] # Using string for robustness
+        dudas = [p for p in team.players if p.status == "Duda"]
+        
+        # 3. Dynamic Reports
+        reports = []
+        
+        # Health Section
+        if bajas:
+            p_names = ", ".join([p.name for p in bajas[:2]])
+            reports.append(f"❌ **Baja Sensible:** La prensa local lamenta la ausencia de {p_names}. El esquema táctico de {team.name} sufrirá sin ellos.")
+        elif dudas:
+            p_names = ", ".join([p.name for p in dudas[:2]])
+            reports.append(f"⚠️ **Duda de última hora:** {p_names} están entre algodones. El cuerpo médico decidirá tras el calentamiento.")
+        else:
+            reports.append(f"✅ **Sin Bajas Relevantes:** El cuerpo médico da luz verde. La prensa destaca la plenitud física de la plantilla.")
+
+        # Performance Section
+        if stars:
+            star = random.choice(stars)
+            reports.append(f"⭐ **En el foco:** '{star.name} es imparable', publica la prensa local tras su rating de {star.rating_last_5} en los últimos encuentros.")
+        elif key_players:
+            key = random.choice(key_players)
+            reports.append(f"📈 **Consistencia:** Destacan el papel de {key.name} como columna vertebral del equipo en este tramo de la temporada.")
+        
+        # Atmosphere Section
+        atmospheres = [
+            f"💪 **Ambiente:** 'Es una final', titulan los medios locales. Máxima motivación en el vestuario de {team.name}.",
+            f"🔄 **Táctica:** Se especula con un cambio de sistema para potenciar las bandas.",
+            f"📢 **Presión:** El entorno del club exige una victoria tras los últimos resultados."
         ]
+        reports.append(random.choice(atmospheres))
         
-        # Templates for "Signings/News" (Incorporaciones/Novedades)
-        news_templates = [
-            f"🆕 **Fichajes:** La prensa destaca la rápida adaptación de las nuevas incorporaciones.",
-            f"🔄 **Rotación:** Se especula con cambios tácticos para dar entrada a los fichajes de invierno.",
-            f"📢 **Ambiente:** Declaraciones polémicas del entrenador han tensado el ambiente en el vestuario.",
-            f"💪 **Motivación:** 'Es una final', titula la prensa local. Máxima concentración."
-        ]
-        
-        return f"{random.choice(inj_templates)}\n{random.choice(news_templates)}"
+        return "\n".join(reports)
 
     def _scan_national_press(self, team: Team) -> str:
         country = self._get_country(team.name)
