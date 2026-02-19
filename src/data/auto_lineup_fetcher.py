@@ -50,6 +50,7 @@ class AutoLineupFetcher:
             "Ligue 1": "ligue-1",
             "Champions League": "champions-league",
             "Europa League": "europa-league",
+            "Conference League": "europa-conference-league",
             "Liga Mixta (Combinada)": "la-liga" # Default to La Liga for Mixta search as a starting point
         }
         
@@ -183,7 +184,8 @@ class AutoLineupFetcher:
             "Premier League": "england-premier-league",
             "Serie A": "italy-serie-a",
             "Bundesliga": "germany-bundesliga",
-            "Ligue 1": "france-ligue-1"
+            "Ligue 1": "france-ligue-1",
+            "Conference League": "europa-conference-league"
         }
         
         league_slug = league_map.get(league)
