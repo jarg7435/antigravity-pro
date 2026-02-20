@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 class PlayerPosition(str, Enum):
@@ -25,6 +25,8 @@ class NodeRole(str, Enum):
     NONE = "Ninguno"
 
 class Player(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     id: str
     name: str
     team_name: str
@@ -33,7 +35,7 @@ class Player(BaseModel):
     status: PlayerStatus = PlayerStatus.TITULAR
     
     # Advanced Metrics (Wyscout/Opta)
-    rating_last_5: float = Field(..., ge=0, le=10)
+    rating_last_5: float = Field(7.0, ge=0, le=10)
     xg_last_5: float = 0.0
     xa_last_5: float = 0.0
     ppda: float = 0.0
@@ -42,6 +44,8 @@ class Player(BaseModel):
     tracking_km_avg: float = 0.0
 
 class Team(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     name: str
     league: str
     players: List[Player] = []
@@ -55,10 +59,12 @@ class Team(BaseModel):
     motivation_level: float = 1.0
 
 class MatchConditions(BaseModel):
-    temperature: float
-    rain_mm: float
-    wind_kmh: float
-    humidity_percent: float
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
+    temperature: float = 20.0
+    rain_mm: float = 0.0
+    wind_kmh: float = 10.0
+    humidity_percent: float = 50.0
     pitch_quality: str = "Bueno" # Bueno, Medio, Malo
 
 class RefereeStrictness(str, Enum):
@@ -67,19 +73,23 @@ class RefereeStrictness(str, Enum):
     LOW = "Bajo (Permisivo)"   # Few cards
 
 class Referee(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     name: str = "Árbitro Desconocido"
     strictness: RefereeStrictness = RefereeStrictness.MEDIUM
     avg_cards: float = 4.5
 
 class Match(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     id: str
-    home_team: Team
-    away_team: Team
+    home_team: Any # Flexible type for Team model
+    away_team: Any # Flexible type for Team model
     date: Any # Can be datetime or date, handles Pydantic v2 quirks
     kickoff_time: str = "21:00"
-    competition: str
-    conditions: Optional[MatchConditions] = None
-    referee: Optional[Referee] = None
+    competition: str = "Unknown"
+    conditions: Optional[Any] = None
+    referee: Optional[Any] = None
     lineup_confirmed: bool = False
     referee_confirmed: bool = False
     
@@ -89,6 +99,8 @@ class Match(BaseModel):
     market_odds: Dict[str, float] = {} # e.g. {"1": 1.95, "X": 3.40, "2": 4.10}
 
 class PredictionResult(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     match_id: str
     bpa_home: float
     bpa_away: float
@@ -119,6 +131,8 @@ class PredictionResult(BaseModel):
     referee_name: str = "Autodetectado"
 
 class MatchOutcome(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+    
     match_id: str
     home_score: int
     away_score: int
