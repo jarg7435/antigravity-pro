@@ -57,7 +57,8 @@ h6 {
 }
 
 small,
-.caption {
+.caption,
+[data-testid="stMetricValue"] {
     color: #fdffcc !important;
 }
 
