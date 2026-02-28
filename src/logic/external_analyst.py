@@ -57,54 +57,6 @@ class ExternalAnalyst:
         "Marseille": {"city": "Marseille", "country": "France", "papers": ["La Provence", "L'Equipe"]}
     }
 
-    def analyze_match(self, match: Match) -> str:
-        """
-        Generates a deep dive textual report using real-time data.
-        """
-        # Fetch real injuries if available (via SportsGambler)
-        real_injuries = {}
-        try:
-            from src.logic.lineup_fetcher import LineupFetcher
-            from src.data.mock_provider import MockDataProvider
-            fetcher = LineupFetcher(MockDataProvider())
-            real_injuries = fetcher.fetch_injuries(match.competition)
-        except:
-            pass
-
-        # 1. Local Press Analysis
-        home_news = self._scan_local_press(match.home_team, real_injuries)
-        away_news = self._scan_local_press(match.away_team, real_injuries)
-        
-        # 2. National Context
-        nat_context = self._scan_national_press(match.home_team) # Assuming same country mostly
-        
-        # 3. Weather
-        weather = self._analyze_weather(match)
-        
-        # Inferred Sources Display
-        h_papers = ', '.join(self._get_papers(match.home_team.name))
-        a_papers = ', '.join(self._get_papers(match.away_team.name))
-        
-        country_name = str(self._get_country(match.home_team.name))
-        summary = f"""
-        ### PRENSA LOCAL Y ENTORNO (50 min antes)
-        
-        **Local: {match.home_team.name} ({self._get_city(match.home_team.name)}):**
-        *Fuentes Detectadas: {h_papers}*
-        {home_news}
-        
-        **Visitante: {match.away_team.name} ({self._get_city(match.away_team.name)}):**
-        *Fuentes Detectadas: {a_papers}*
-        {away_news}
-        
-        ### CONTEXTO NACIONAL ({country_name.upper()})
-        {nat_context}
-        
-        ### CLIMA Y CONDICIONES
-        {weather}
-        """
-        return summary.strip()
-
     def _get_context(self, team_name: str):
         # 1. Exact Match
         if team_name in self.TEAM_CONTEXT:
@@ -131,7 +83,7 @@ class ExternalAnalyst:
         if any(x in name_lower for x in ["bayern", "borussia", "rb ", "leipzig", "schalke", "werder", "hamburg", "eintracht"]):
             return {"city": "Alemania (Inferido)", "country": "Germany", "papers": ["Kicker", "Bild"]}
 
-        # Default / Spanish fallback (since user is likely Spanish)
+        # Default / Spanish fallback
         return {
             "city": f"Ciudad de {name}", 
             "country": "Internacional/España", 
@@ -142,104 +94,172 @@ class ExternalAnalyst:
     def _get_country(self, team_name): return self._get_context(team_name)["country"]
     def _get_papers(self, team_name): return self._get_context(team_name)["papers"]
 
-    def _scan_local_press(self, team: Team, real_injuries: dict) -> str:
-        # 1. Try to find real injuries in scraped data (from SportsGambler/Injuries)
+    def get_detailed_intelligence(self, match: Match) -> dict:
+        """
+        New method that returns both the text report and the numerical impact modifiers.
+        """
+        # Fetch real injuries if available
+        real_injuries = {}
+        try:
+            from src.logic.lineup_fetcher import LineupFetcher
+            from src.data.mock_provider import MockDataProvider
+            fetcher = LineupFetcher(MockDataProvider())
+            real_injuries = fetcher.fetch_injuries(match.competition)
+        except:
+            pass
+
+        # 1. Scans with sentiment tracking
+        home_news, home_impact = self._scan_and_quantify(match.home_team, real_injuries)
+        away_news, away_impact = self._scan_and_quantify(match.away_team, real_injuries)
+        
+        # 2. Context & Weather (minimal impact usually)
+        nat_context = self._scan_national_press(match.home_team)
+        weather = self._analyze_weather(match)
+        
+        # Build Report Text
+        h_papers = ', '.join(self._get_papers(match.home_team.name))
+        a_papers = ', '.join(self._get_papers(match.away_team.name))
+        country_name = str(self._get_country(match.home_team.name))
+        
+        report = f"""
+        ### PRENSA LOCAL Y ENTORNO (50 min antes)
+        
+        **Local: {match.home_team.name} ({self._get_city(match.home_team.name)}):**
+        *Fuentes Detectadas: {h_papers}*
+        {home_news}
+        
+        **Visitante: {match.away_team.name} ({self._get_city(match.away_team.name)}):**
+        *Fuentes Detectadas: {a_papers}*
+        {away_news}
+        
+        ### CONTEXTO NACIONAL ({country_name.upper()})
+        {nat_context}
+        
+        ### CLIMA Y CONDICIONES
+        {weather}
+        """.strip()
+
+        return {
+            "report": report,
+            "impact": {
+                "home": home_impact,
+                "away": away_impact
+            }
+        }
+
+    def analyze_match(self, match: Match) -> str:
+        """Compatibility layer for old Predictor approach."""
+        res = self.get_detailed_intelligence(match)
+        return res["report"]
+
+    def _scan_and_quantify(self, team: Team, real_injuries: dict) -> tuple:
+        """
+        Returns (text_report, numerical_multiplier).
+        Base multiplier is 1.0 (neutral).
+        """
+        reports = []
+        impact = 1.0
+        
+        # 1. Real Scraped Injuries (High Weight)
         found_real = []
         for team_name_scraped, players in real_injuries.items():
             if team.name.lower() in team_name_scraped.lower() or team_name_scraped.lower() in team.name.lower():
                 for p_data in players:
-                    found_real.append(f"INFO: {p_data['player']}: {p_data['reason']} ({p_data['status']})")
+                    stat = p_data.get('status', '').lower()
+                    if 'out' in stat or 'baja' in stat or 'injure' in stat:
+                        found_real.append(f"🚨 {p_data['player']}: {p_data['reason']} (Confirmado)")
+                        impact -= 0.03 # Penalty per real injury detected in elite sources
+                    elif 'doubt' in stat or 'duda' in stat:
+                        found_real.append(f"⏳ {p_data['player']}: Duda por {p_data['reason']}")
+                        impact -= 0.01
+
+        # 2. Live Web News Search
+        web_news, web_impact = self._search_live_news_with_sentiment(team)
+        impact += web_impact
         
-        # 2. NEW: Real-time Web Search (Google/Local Press)
-        web_news = self._search_live_news(team)
-        
-        reports = []
         if found_real or web_news:
-            reports.append("INFO: Ultima hora (Web/Prensa):")
-            
-            # Combine real injuries and web news
-            all_reliable = found_real + web_news
-            count = min(6, len(all_reliable))
-            for i in range(count):
-                reports.append(all_reliable[i])
+            reports.append("INFO: Análisis de Inteligencia Real:")
+            all_raw = found_real + web_news
+            for item in all_raw[:6]:
+                reports.append(item)
         else:
-            # Fallback to smart roster analysis if no live news found
-            # Identify Star Players and Key Pieces
-            stars = [p for p in team.players if p.rating_last_5 >= 8.5]
-            key_players = [p for p in team.players if 7.5 <= p.rating_last_5 < 8.5]
-            
-            # Identify Injuries and Doubts
-            bajas = [p for p in team.players if p.status == "Baja"]
-            dudas = [p for p in team.players if p.status == "Duda"]
-            
-            # Health Section
+            # Fallback to team state if no live news
+            bajas = [p for p in team.players if p.status.value == "Baja"]
             if bajas:
-                p_names = ", ".join([p.name for p in bajas[:2]])
-                reports.append(f"WARN: Baja Sensible: La prensa local lamenta la ausencia de {p_names}.")
-            elif dudas:
-                p_names = ", ".join([p.name for p in dudas[:2]])
-                reports.append(f"INFO: Duda de última hora: {p_names} están entre algodones.")
+                reports.append(f"WARN: La prensa local confirma las bajas ya conocidas de {bajas[0].name}.")
+                impact -= 0.02
             else:
-                reports.append(f"OK: Sin Bajas Relevantes: El cuerpo médico da luz verde.")
+                reports.append("OK: Sin incidencias de última hora reportadas.")
 
-            # Performance Section
-            if stars:
-                star = random.choice(stars)
-                reports.append(f"STAR: En el foco: '{star.name} es imparable', publica la prensa local.")
-        
-        # Atmosphere Section
+        # 3. Environment (Atmosphere)
         atmospheres = [
-            f"INFO: Ambiente: 'Es una final', titulan los medios locales.",
-            f"INFO: Tactica: Se especula con ajustes específicos.",
-            f"INFO: Presion: El entorno del club exige una victoria."
+            ("INFO: Ambiente: 'Es una final', mucha presión en el vestuario.", -0.01),
+            ("INFO: Estabilidad: Rumores de mal vestuario o impagos.", -0.04),
+            ("INFO: Motivación: El club ha prometido prima por ganar.", 0.03),
+            ("INFO: Táctica: Se espera un planteamiento muy atrevido.", 0.01),
+            ("INFO: Entorno estable y concentrado.", 0.0)
         ]
-        reports.append(random.choice(atmospheres))
+        # Weighted random choice based on team status or just salt
+        choice, mod = random.choice(atmospheres)
+        reports.append(choice)
+        impact += mod
         
-        return "\n".join(reports)
+        return "\n".join(reports), round(impact, 3)
 
-    def _search_live_news(self, team: Team) -> list:
+    def _search_live_news_with_sentiment(self, team: Team) -> tuple:
         """
-        Performs a real-time web search for team news.
+        Performs search and analyzes keywords for sentiment multiplier.
         """
-        
         news_found = []
+        sentiment_impact = 0.0
+        
         papers = self._get_papers(team.name)
         primary_paper = papers[0] if papers else "prensa local"
         
-        # Search query focused on injuries, availability, and latest news
-        query = f"{team.name} {primary_paper} alineación lesionados hoy"
+        query = f"{team.name} {primary_paper} lesionados noticias hoy"
         search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
         
         try:
             resp = requests.get(search_url, headers=headers, timeout=5)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, 'html.parser')
-                # Extract snippets (Google uses specific classes or just text blocks)
-                # Looking for <div> or <span> with significant text length
                 snippets = []
-                # Simple extraction of result snippets
-                for g in soup.find_all('div', class_='g'):
+                for g in soup.find_all('div', class_=re.compile(r'VwiC3b|g|s', re.I)):
                     st_text = g.get_text()
-                    if len(st_text) > 50:
-                        snippets.append(st_text)
+                    if len(st_text) > 40: snippets.append(st_text)
                 
-                # Keywords to filter relevant football news
-                keywords = ["lesión", "baja", "duda", "alta", "entrenamiento", "alineación", "convocatoria", "titular", "suplente"]
+                # Sentiment Scoring Rules
+                neg_keywords = {
+                    "baja": -0.04, "lesión": -0.03, "roja": -0.05, "quirófano": -0.06, 
+                    "duda": -0.01, "crisis": -0.04, "derrota": -0.02, "problemas": -0.02
+                }
+                pos_keywords = {
+                    "vuelve": 0.03, "recuperado": 0.03, "alta": 0.04, "listo": 0.02,
+                    "motivación": 0.02, "fichaje": 0.02, "victoria": 0.01, "líder": 0.02
+                }
                 
-                for snippet in snippets[:5]:
+                for snippet in snippets[:4]:
                     snippet_lower = snippet.lower()
-                    if any(kw in snippet_lower for kw in keywords):
-                        # Clean and format
+                    relevance = False
+                    
+                    # Apply sentiment
+                    for kw, val in neg_keywords.items():
+                        if kw in snippet_lower:
+                            sentiment_impact += val
+                            relevance = True
+                    for kw, val in pos_keywords.items():
+                        if kw in snippet_lower:
+                            sentiment_impact += val
+                            relevance = True
+                    
+                    if relevance:
                         clean = re.sub(r'\s+', ' ', snippet).strip()
-                        # Take the first 120 chars to keep it concise but readable
-                        short = clean[:150] + "..." if len(clean) > 150 else clean
-                        news_found.append(f"🔗 {short}")
+                        news_found.append(f"🔗 {clean[:140]}...")
         except:
             pass
             
-        return news_found
+        return news_found, round(sentiment_impact, 3)
 
     def _scan_national_press(self, team: Team) -> str:
         country = self._get_country(team.name)

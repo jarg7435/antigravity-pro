@@ -26,13 +26,16 @@ class BPAEngine:
     FACTOR_BAD_WEATHER = 0.90 # Applied generally if conditions are bad
     FACTOR_MOTIVATION_HIGH = 1.15
 
-    def calculate_match_bpa(self, match: Match) -> dict:
+    def calculate_match_bpa(self, match: Match, press_modifiers: dict = None) -> dict:
         """
         Calculates BPA for both teams in a match.
-        Returns: {'home_bpa': float, 'away_bpa': float, 'details': dict}
+        pres_modifiers: {'home': float, 'away': float} coming from ExternalAnalyst.
         """
-        bpa_home = self._calculate_team_bpa(match.home_team, is_home=True, conditions=match.conditions)
-        bpa_away = self._calculate_team_bpa(match.away_team, is_home=False, conditions=match.conditions)
+        h_mod = press_modifiers.get('home', 1.0) if press_modifiers else 1.0
+        a_mod = press_modifiers.get('away', 1.0) if press_modifiers else 1.0
+        
+        bpa_home = self._calculate_team_bpa(match.home_team, is_home=True, conditions=match.conditions, press_mod=h_mod)
+        bpa_away = self._calculate_team_bpa(match.away_team, is_home=False, conditions=match.conditions, press_mod=a_mod)
         
         return {
             "home_bpa": round(bpa_home, 4),
@@ -40,7 +43,7 @@ class BPAEngine:
             "advantage": self._determine_advantage(bpa_home, bpa_away)
         }
 
-    def _calculate_team_bpa(self, team: Team, is_home: bool, conditions) -> float:
+    def _calculate_team_bpa(self, team: Team, is_home: bool, conditions, **kwargs) -> float:
         total_score = 0.0
         
         for player in team.players:
@@ -97,7 +100,10 @@ class BPAEngine:
         # If we have any confidence factor reported in team metadata
         factor_c = getattr(team, 'factor_c', 1.0)
         
-        return total_score * context_factor * factor_c
+        # Press Intelligence Factor (Sentiment)
+        press_mod = kwargs.get('press_mod', 1.0)
+        
+        return total_score * context_factor * factor_c * press_mod
 
     def _get_status_value(self, status: PlayerStatus) -> float:
         if status == PlayerStatus.TITULAR:

@@ -20,19 +20,24 @@ class Predictor:
         self.value_engine = ValueEngine()
 
     def predict_match(self, match: Match) -> PredictionResult:
-        # 1. BPA Analysis (Core legacy logic)
-        bpa_res = self.bpa_engine.calculate_match_bpa(match)
+        # 1. External & Stat Markets (NOW FIRST to calibrate model)
+        intel = self.external_analyst.get_detailed_intelligence(match)
+        analysis_text = intel["report"]
+        press_impact = intel["impact"]
+
+        # 2. BPA Analysis (Adjusted by Intelligence)
+        bpa_res = self.bpa_engine.calculate_match_bpa(match, press_modifiers=press_impact)
         bpa_h, bpa_a = bpa_res['home_bpa'], bpa_res['away_bpa']
 
-        # 2. Poisson Statistics (Goals & Lambdas con Integración BPA)
+        # 3. Poisson Statistics (Goals & Lambdas con Integración BPA)
         h_lambda, a_lambda = self.poisson.estimate_lambdas(match.home_team, match.away_team, home_bpa=bpa_h, away_bpa=bpa_a)
         p_matrix = self.poisson.predict_score_matrix(h_lambda, a_lambda)
         p_home, p_draw, p_away = self.poisson.calculate_match_probabilities(h_lambda, a_lambda)
 
-        # 3. Machine Learning (Ensemble classification)
+        # 4. Machine Learning (Ensemble classification)
         ml_probs = self.ml.predict_probabilities(None) 
 
-        # 4. Hybrid Blending (Fusión de modelos)
+        # 5. Hybrid Blending (Fusión de modelos)
         final_home = (ml_probs['LOCAL'] * 0.4) + (p_home * 0.4) + (0.35 + (bpa_h - bpa_a) * 0.2)
         final_draw = (ml_probs['EMPATE'] * 0.4) + (p_draw * 0.4) + (0.30)
         final_away = (ml_probs['VISITANTE'] * 0.4) + (p_away * 0.4) + (0.35 - (bpa_h - bpa_a) * 0.2)
@@ -40,8 +45,6 @@ class Predictor:
         # Normalize
         total = final_home + final_draw + final_away
         
-        # 5. External & Stat Markets
-        analysis_text = self.external_analyst.analyze_match(match)
         stats = self.external_analyst.calculate_stat_markets(match, bpa_h, bpa_a)
         
         # Determine the most likely score
