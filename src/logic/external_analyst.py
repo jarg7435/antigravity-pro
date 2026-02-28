@@ -1,4 +1,7 @@
 import random
+import requests
+import re
+from bs4 import BeautifulSoup
 from src.models.base import Match, Team
 
 class ExternalAnalyst:
@@ -84,20 +87,20 @@ class ExternalAnalyst:
         
         country_name = str(self._get_country(match.home_team.name))
         summary = f"""
-        ### 🗞️ PRENSA LOCAL Y ENTORNO (50 min antes)
+        ### PRENSA LOCAL Y ENTORNO (50 min antes)
         
-        **🏠 {match.home_team.name} ({self._get_city(match.home_team.name)}):**
+        **Local: {match.home_team.name} ({self._get_city(match.home_team.name)}):**
         *Fuentes Detectadas: {h_papers}*
         {home_news}
         
-        **✈️ {match.away_team.name} ({self._get_city(match.away_team.name)}):**
+        **Visitante: {match.away_team.name} ({self._get_city(match.away_team.name)}):**
         *Fuentes Detectadas: {a_papers}*
         {away_news}
         
-        ### 🌍 CONTEXTO NACIONAL ({country_name.upper()})
+        ### CONTEXTO NACIONAL ({country_name.upper()})
         {nat_context}
         
-        ### ⛈️ CLIMA Y CONDICIONES
+        ### CLIMA Y CONDICIONES
         {weather}
         """
         return summary.strip()
@@ -140,21 +143,25 @@ class ExternalAnalyst:
     def _get_papers(self, team_name): return self._get_context(team_name)["papers"]
 
     def _scan_local_press(self, team: Team, real_injuries: dict) -> str:
-        # 1. Try to find real injuries in scraped data
+        # 1. Try to find real injuries in scraped data (from SportsGambler/Injuries)
         found_real = []
         for team_name_scraped, players in real_injuries.items():
-            # Fuzzy match team name
             if team.name.lower() in team_name_scraped.lower() or team_name_scraped.lower() in team.name.lower():
                 for p_data in players:
-                    found_real.append(f"🚩 **{p_data['player']}**: {p_data['reason']} ({p_data['status']})")
+                    found_real.append(f"INFO: {p_data['player']}: {p_data['reason']} ({p_data['status']})")
+        
+        # 2. NEW: Real-time Web Search (Google/Local Press)
+        web_news = self._search_live_news(team)
         
         reports = []
-        if found_real:
-            reports.append("📰 **Última hora (Web/Prensa):**")
-            # Slice safely
-            count = min(4, len(found_real))
+        if found_real or web_news:
+            reports.append("INFO: Ultima hora (Web/Prensa):")
+            
+            # Combine real injuries and web news
+            all_reliable = found_real + web_news
+            count = min(6, len(all_reliable))
             for i in range(count):
-                reports.append(found_real[i])
+                reports.append(all_reliable[i])
         else:
             # Fallback to smart roster analysis if no live news found
             # Identify Star Players and Key Pieces
@@ -168,30 +175,71 @@ class ExternalAnalyst:
             # Health Section
             if bajas:
                 p_names = ", ".join([p.name for p in bajas[:2]])
-                reports.append(f"❌ **Baja Sensible:** La prensa local lamenta la ausencia de {p_names}. El esquema táctico de {team.name} sufrirá sin ellos.")
+                reports.append(f"WARN: Baja Sensible: La prensa local lamenta la ausencia de {p_names}.")
             elif dudas:
                 p_names = ", ".join([p.name for p in dudas[:2]])
-                reports.append(f"⚠️ **Duda de última hora:** {p_names} están entre algodones. El cuerpo médico decidirá tras el calentamiento.")
+                reports.append(f"INFO: Duda de última hora: {p_names} están entre algodones.")
             else:
-                reports.append(f"✅ **Sin Bajas Relevantes:** El cuerpo médico da luz verde. La prensa destaca la plenitud física de la plantilla.")
+                reports.append(f"OK: Sin Bajas Relevantes: El cuerpo médico da luz verde.")
 
             # Performance Section
             if stars:
                 star = random.choice(stars)
-                reports.append(f"⭐ **En el foco:** '{star.name} es imparable', publica la prensa local tras su rating de {star.rating_last_5} en los últimos encuentros.")
-            elif key_players:
-                key = random.choice(key_players)
-                reports.append(f"📈 **Consistencia:** Destacan el papel de {key.name} como columna vertebral del equipo.")
+                reports.append(f"STAR: En el foco: '{star.name} es imparable', publica la prensa local.")
         
         # Atmosphere Section
         atmospheres = [
-            f"💪 **Ambiente:** 'Es una final', titulan los medios locales en {self._get_city(team.name)}.",
-            f"🔄 **Táctica:** Se especula con ajustes específicos para neutralizar al rival.",
-            f"📢 **Presión:** El entorno del club exige una victoria tras los últimos resultados."
+            f"INFO: Ambiente: 'Es una final', titulan los medios locales.",
+            f"INFO: Tactica: Se especula con ajustes específicos.",
+            f"INFO: Presion: El entorno del club exige una victoria."
         ]
         reports.append(random.choice(atmospheres))
         
         return "\n".join(reports)
+
+    def _search_live_news(self, team: Team) -> list:
+        """
+        Performs a real-time web search for team news.
+        """
+        
+        news_found = []
+        papers = self._get_papers(team.name)
+        primary_paper = papers[0] if papers else "prensa local"
+        
+        # Search query focused on injuries, availability, and latest news
+        query = f"{team.name} {primary_paper} alineación lesionados hoy"
+        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        
+        try:
+            resp = requests.get(search_url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                # Extract snippets (Google uses specific classes or just text blocks)
+                # Looking for <div> or <span> with significant text length
+                snippets = []
+                # Simple extraction of result snippets
+                for g in soup.find_all('div', class_='g'):
+                    st_text = g.get_text()
+                    if len(st_text) > 50:
+                        snippets.append(st_text)
+                
+                # Keywords to filter relevant football news
+                keywords = ["lesión", "baja", "duda", "alta", "entrenamiento", "alineación", "convocatoria", "titular", "suplente"]
+                
+                for snippet in snippets[:5]:
+                    snippet_lower = snippet.lower()
+                    if any(kw in snippet_lower for kw in keywords):
+                        # Clean and format
+                        clean = re.sub(r'\s+', ' ', snippet).strip()
+                        # Take the first 120 chars to keep it concise but readable
+                        short = clean[:150] + "..." if len(clean) > 150 else clean
+                        news_found.append(f"🔗 {short}")
+        except:
+            pass
+            
+        return news_found
 
     def _scan_national_press(self, team: Team) -> str:
         country = self._get_country(team.name)

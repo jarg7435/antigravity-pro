@@ -1,5 +1,6 @@
 from src.models.base import Match, Team, Player, NodeRole, PlayerStatus
 from src.data.knowledge_base import KnowledgeBase
+from src.logic.blindaje_ia import BlindajeIA
 
 class BPAEngine:
     """
@@ -8,6 +9,7 @@ class BPAEngine:
     
     def __init__(self):
         self.kb = KnowledgeBase()
+        self.blindaje = BlindajeIA()
     
     # Node Weights defined in Phase 2
     WEIGHTS = {
@@ -86,7 +88,16 @@ class BPAEngine:
             if conditions.wind_kmh > 30:
                 context_factor *= self.FACTOR_BAD_WEATHER
 
-        return total_score * context_factor
+        # Factor C: Blindaje IA Confidence
+        # This is a match-level/team-level penalty based on Elite Sources
+        # Assuming we can access the match object or just the team contextual data
+        # For full integration, we'll assume Factor C is calculated upfront
+        # or we calculate it here if Match is provided (backwards compat)
+        
+        # If we have any confidence factor reported in team metadata
+        factor_c = getattr(team, 'factor_c', 1.0)
+        
+        return total_score * context_factor * factor_c
 
     def _get_status_value(self, status: PlayerStatus) -> float:
         if status == PlayerStatus.TITULAR:

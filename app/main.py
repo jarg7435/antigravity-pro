@@ -189,15 +189,30 @@ else:
         
         if "fetched_ref" not in st.session_state:
             st.session_state.fetched_ref = None
-        # Display current referee and lineup source
-        current_ref_name = st.session_state.fetched_ref["name"] if st.session_state.fetched_ref else "Pendiente..."
+        st.markdown('<p style="color: #fdffcc; font-size: 0.9rem;">🤖 El sistema accederá automáticamente a fuentes oficiales para árbitros (RFEF, Premier, FIGC, DFB, LFP).</p>', unsafe_allow_html=True)
+
         ref_source = st.session_state.fetched_ref.get("source", "Automático") if st.session_state.fetched_ref else "Automático"
         
         c_ref1, c_ref2 = st.columns([2, 1])
-        with c_ref1:
-            st.markdown(f'<h4 style="color: #fdffcc; margin-top: 5px;">👨‍⚖️ Árbitro: {current_ref_name} <span style="font-size: 0.8rem; color: #888;">({ref_source})</span></h4>', unsafe_allow_html=True)
-        with c_ref2:
-            if not st.session_state.fetched_ref:
+        # Build referee object with auto-fetched data
+        if st.session_state.fetched_ref:
+            ref_name = st.session_state.fetched_ref["name"]
+            v_link = st.session_state.fetched_ref.get("verification_link")
+            
+            with c_ref1:
+                # Display current referee with verification link
+                v_html = f' <a href="{v_link}" target="_blank" style="color: #00ff00; text-decoration: none; font-size: 0.8rem;">[🛡️ Verificar]</a>' if v_link else ""
+                st.markdown(f'<h4 style="color: #fdffcc; margin-top: 5px;">👨‍⚖️ Árbitro: {ref_name}{v_html} <span style="font-size: 0.8rem; color: #888;">({ref_source})</span></h4>', unsafe_allow_html=True)
+            
+            selected_ref = Referee(
+                name=ref_name, 
+                strictness=st.session_state.fetched_ref["strictness"],
+                verification_link=v_link
+            )
+        else:
+            with c_ref1:
+                st.markdown(f'<h4 style="color: #fdffcc; margin-top: 5px;">👨‍⚖️ Árbitro: Pendiente...</h4>', unsafe_allow_html=True)
+            with c_ref2:
                 if st.button("🔍 Buscar Árbitro Ahora", use_container_width=True):
                     with st.spinner("Buscando designación..."):
                         l_fetcher = LineupFetcher(data_provider)
@@ -206,20 +221,6 @@ else:
                         )
                         st.session_state.fetched_ref = ref_data
                         st.rerun()
-
-        with st.sidebar.expander("🛠️ INFO DE VERSIÓN"):
-            st.markdown(f"**App Version:** 6.70.0 (Global Generic)")
-            st.markdown("*Módulos de IA re-calibrados y estables.*")
-
-        st.markdown('<p style="color: #fdffcc; font-size: 0.9rem;">🤖 El sistema accederá automáticamente a fuentes oficiales para árbitros (RFEF, Premier, etc.).</p>', unsafe_allow_html=True)
-
-        # Build referee object with auto-fetched data
-        if st.session_state.fetched_ref:
-            selected_ref = Referee(
-                name=st.session_state.fetched_ref["name"], 
-                strictness=st.session_state.fetched_ref["strictness"]
-            )
-        else:
             selected_ref = Referee(name="Por Detectar", strictness=RefereeStrictness.MEDIUM)
         
         from datetime import datetime
@@ -275,68 +276,39 @@ else:
                 st.markdown(f'<p style="color: #fdffcc;">Confirmado vía: {lineup_source}</p>', unsafe_allow_html=True)
         
         with c_conf2:
-            button_label = "🔄 CONFIRMAR OFICIAL" if can_fetch_official else "📋 USAR ÚLTIMO PARTIDO"
+            button_label = "🛡️ CONFIRMAR DATOS (OFICIAL)" if can_fetch_official else "📋 CARGAR ÚLTIMO PARTIDO"
             if st.button(button_label, type="primary", use_container_width=True):
-                if can_fetch_official:
-                    # Official fetching (1 hour before)
-                    with st.spinner("🤖 Accediendo a fuentes oficiales..."):
-                        l_fetcher = LineupFetcher(data_provider)
-                        
-                        # 1. Auto-fetch lineups from SportsGambler
-                        res = l_fetcher.auto_fetcher.fetch_lineups_auto(
-                            home_team.name, 
-                            away_team.name, 
-                            selected_date, 
-                            selected_league
-                        )
-                        
-                        if "error" not in res:
-                            st.session_state.fetched_lineups = res
-                            status_emoji = "✅" if res.get('status') == 'confirmed' else "🔮"
-                            st.toast(f"{status_emoji} Detectados {res['count']} jugadores ({res.get('status', 'predicted')})", icon="📡")
-                        else:
-                            st.warning(f"⚠️ Alineaciones: {res['error']}. Usando base de datos interna.")
-                            # Fallback to internal DB
-                            st.session_state.fetched_lineups = {
-                                'home': [p.name for p in home_team.players],
-                                'away': [p.name for p in away_team.players],
-                                'source': 'Base de Datos Interna',
-                                'count': len(home_team.players) + len(away_team.players)
-                            }
-                        
-                        # 2. Auto-fetch referee from official league source
+                with st.spinner("🤖 Sincronizando datos..."):
+                    l_fetcher = LineupFetcher(data_provider)
+                    
+                    # Unified Smart Fetching
+                    res = l_fetcher.fetch_smart_lineup(
+                        home_team.name, 
+                        away_team.name, 
+                        match_datetime, 
+                        selected_league
+                    )
+                    
+                    st.session_state.fetched_lineups = res
+                    st.session_state.lineups_confirmed = True
+                    
+                    # Fetch Referee if official is available, otherwise placeholder
+                    if can_fetch_official:
                         ref_data = l_fetcher.fetch_match_referee(
-                            home_team.name,
-                            away_team.name,
-                            selected_date,
-                            selected_league
+                            home_team.name, away_team.name, selected_date, selected_league
                         )
                         st.session_state.fetched_ref = ref_data
-                        st.toast(f"👨‍⚖️ Árbitro: {ref_data['name']} ({ref_data.get('source', 'Unknown')})", icon="⚖️")
-                else:
-                    # Use last match lineups (before 1 hour)
-                    with st.spinner("📋 Cargando alineaciones del último partido..."):
-                        home_last = data_provider.get_last_match_lineup(home_team.name)
-                        away_last = data_provider.get_last_match_lineup(away_team.name)
-                        
-                        st.session_state.fetched_lineups = {
-                            'home': home_last if home_last else [p.name for p in home_team.players],
-                            'away': away_last if away_last else [p.name for p in away_team.players],
-                            'source': 'Último Partido Jugado',
-                            'count': len(home_last) + len(away_last) if home_last and away_last else 0
-                        }
-                        
-                        # Use generic referee
+                        st.toast(f"👨‍⚖️ Árbitro Oficial: {ref_data['name']}", icon="⚖️")
+                    else:
                         st.session_state.fetched_ref = {
                             'name': 'Por Confirmar (1h antes)',
                             'strictness': RefereeStrictness.MEDIUM,
                             'source': 'Pendiente'
                         }
-                        
-                        st.toast(f"📋 Usando alineaciones del último partido ({len(home_last) + len(away_last)} jugadores)", icon="📊")
-                
-                st.session_state.lineups_confirmed = True
-                st.rerun()
+                    
+                    status_emoji = "✅" if res.get('is_official') else "📊"
+                    st.toast(f"{status_emoji} Datos cargados vía: {res.get('source')}", icon="📡")
+                    st.rerun()
 
         # --- LINEUP VALIDATION ---
         st.divider()

@@ -62,7 +62,8 @@ class MockDataProvider(DataProvider):
                 # ADDED: Ademola Lookman (Winter 2026)
                 teams[name] = self._create_team(name, "La Liga", ["Oblak", "Molina", "Le Normand", "Gimenez", "Reinildo", "Koke", "De Paul", "Gallagher", "Griezmann", "Julián Álvarez", "Ademola Lookman"], base_rating=8.8, avg_xg=1.9, avg_xg_c=0.85)
             elif name == "Villarreal":
-                teams[name] = self._create_team(name, "La Liga", ["Conde", "Femenía", "Albiol", "Bailly", "Sergi Cardona", "Parejo", "Comesaña", "Baena", "Yeremy", "Barry", "Ayoze"], base_rating=7.9)
+                # Alineación confirmada 22/02/2026 (sin Parejo ni Gerard Moreno - bajas)
+                teams[name] = self._create_team(name, "La Liga", ["Luiz Junior", "Femenía", "Albiol", "Bailly", "Sergi Cardona", "Comesaña", "Baena", "Yeremy", "Barry", "Mikautadze", "Ayoze"], base_rating=7.9)
             elif name == "Real Betis":
                 teams[name] = self._create_team(name, "La Liga", ["Rui Silva", "Sabaly", "Llorente", "Natan", "Perraud", "Marc Roca", "Johnny", "Fornals", "Lo Celso", "Abde", "Vitor Roque"], base_rating=7.7)
             elif name == "Espanyol":
@@ -74,7 +75,26 @@ class MockDataProvider(DataProvider):
             elif name == "Sevilla FC":
                 teams[name] = self._create_team(name, "La Liga", ["Nyland", "Carmona", "Badé", "Marcao", "Pedrosa", "Gudelj", "Agoumé", "Saúl", "Lukebakio", "Isaac Romero", "Ejuke"], base_rating=7.5)
             elif name == "Valencia":
-                teams[name] = self._create_team(name, "La Liga", ["Mamardashvili", "Foulquier", "Mosquera", "Tárrega", "Vázquez", "Pepelu", "Barrenechea", "Almeida", "Diego López", "Hugo Duro", "Rioja"], base_rating=7.3)
+                # Alineación confirmada 22/02/2026 (Dimitrievski titular, Beltrán como finalizador)
+                teams[name] = self._create_team(name, "La Liga", ["Dimitrievski", "Foulquier", "Mosquera", "Tárrega", "Vázquez", "Pepelu", "Barrenechea", "Almeida", "Diego López", "Hugo Duro", "Beltrán"], base_rating=7.3)
+            elif name == "Getafe":
+                teams[name] = self._create_team(name, "La Liga", ["David Soria", "Iglesias", "Djené", "Alderete", "Diego Rico", "Milla", "Arambarri", "Uche", "Carles Pérez", "Mayoral", "Álex Sola"], base_rating=7.4)
+            elif name == "Girona":
+                teams[name] = self._create_team(name, "La Liga", ["Gazzaniga", "Arnau", "David López", "Blind", "Miguel", "Herrera", "Iván Martín", "Asprilla", "Bryan Gil", "Abel Ruiz", "Danjuma"], base_rating=8.2, avg_xg=1.8, avg_xg_c=1.1)
+            elif name == "Osasuna":
+                teams[name] = self._create_team(name, "La Liga", ["Sergio Herrera", "Areso", "Catena", "Boyomo", "Abel Bretones", "Torró", "Moncayola", "Aimar Oroz", "Rubén García", "Budimir", "Bryan Zaragoza"], base_rating=7.6)
+            elif name == "Alavés":
+                teams[name] = self._create_team(name, "La Liga", ["Sivera", "Tenaglia", "Abqar", "Sedlar", "Manu Sánchez", "Blanco", "Guevara", "Guridi", "Carlos Vicente", "Kike García", "Conechny"], base_rating=7.3)
+            elif name == "Levante":
+                teams[name] = self._create_team(name, "La Liga", ["Andrés Fernández", "Andrés García", "Elgezabal", "Cabello", "Marcos Navarro", "Oriol Rey", "Kochorashvili", "Pablo Martínez", "Carlos Álvarez", "Brugué", "Morales"], base_rating=7.1)
+            elif name == "Celta de Vigo":
+                teams[name] = self._create_team(name, "La Liga", ["Guaita", "Mingueza", "Starfelt", "Marcos Alonso", "Hugo Álvarez", "Beltrán", "Hugo Sotelo", "Bamba", "Swedberg", "Iago Aspas", "Borja Iglesias"], base_rating=7.6)
+            elif name == "Rayo Vallecano":
+                teams[name] = self._create_team(name, "La Liga", ["Batalla", "Ratiu", "Lejeune", "Mumin", "Chavarría", "Valentín", "Unai López", "Isi Palazón", "De Frutos", "Álvaro García", "Camello"], base_rating=7.4)
+            elif name == "Mallorca":
+                teams[name] = self._create_team(name, "La Liga", ["Greif", "Maffeo", "Valjent", "Raíllo", "Mojica", "Samu Costa", "Morlanes", "Robert Navarro", "Dani Rodríguez", "Larin", "Muriqi"], base_rating=7.6)
+            elif name == "Real Oviedo":
+                teams[name] = self._create_team(name, "La Liga", ["Escandell", "Luengo", "Dani Calvo", "David Costas", "Rahim", "Sibo", "Colombatto", "Cazorla", "Ilyas Chaira", "Sebas Moyano", "Alemao"], base_rating=7.0)
             else:
                 teams[name] = self._create_dummy_team(name, "La Liga", base_rating=6.9)
 
@@ -182,10 +202,27 @@ class MockDataProvider(DataProvider):
         # Create dummy players based on names
         import random
         players = []
-        roles = [NodeRole.FINALIZER, NodeRole.CREATOR, NodeRole.DEFENSIVE, NodeRole.KEEPER, NodeRole.TACTICAL]
-        positions = [PlayerPosition.FORWARD, PlayerPosition.MIDFIELDER, PlayerPosition.DEFENDER, PlayerPosition.GOALKEEPER, PlayerPosition.MIDFIELDER]
+        # Standard 4-3-3 mapping template for rosters [GK, 4xDEF, 3xMID, 3xFWD]
+        positions = [
+            PlayerPosition.GOALKEEPER,                                      # 0
+            PlayerPosition.DEFENDER, PlayerPosition.DEFENDER,               # 1, 2
+            PlayerPosition.DEFENDER, PlayerPosition.DEFENDER,               # 3, 4
+            PlayerPosition.MIDFIELDER, PlayerPosition.MIDFIELDER,           # 5, 6
+            PlayerPosition.MIDFIELDER,                                      # 7
+            PlayerPosition.FORWARD, PlayerPosition.FORWARD,                 # 8, 9
+            PlayerPosition.FORWARD                                          # 10
+        ]
+        roles = [
+            NodeRole.KEEPER,                                                # 0
+            NodeRole.DEFENSIVE, NodeRole.DEFENSIVE,                         # 1, 2
+            NodeRole.DEFENSIVE, NodeRole.DEFENSIVE,                         # 3, 4
+            NodeRole.CREATOR, NodeRole.CREATOR,                             # 5, 6
+            NodeRole.CREATOR,                                               # 7
+            NodeRole.FINALIZER, NodeRole.FINALIZER,                         # 8, 9
+            NodeRole.FINALIZER                                              # 10
+        ]
         
-        for i, p_name in enumerate(key_players):
+        for i, p_name in enumerate(key_players[:11]):
             role = roles[i] if i < len(roles) else NodeRole.NONE
             pos = positions[i] if i < len(positions) else PlayerPosition.MIDFIELDER
             
@@ -239,7 +276,7 @@ class MockDataProvider(DataProvider):
         if not team or not team.players:
             return []
         
-        # Return all players as "last match lineup"
+        # Return first 11 players as "last match lineup"
         # In production, this would filter to only the 11 starters from last match
-        return [p.name for p in team.players[:11] if p.status == PlayerStatus.TITULAR]
+        return [p.name for p in team.players[:11]]
 

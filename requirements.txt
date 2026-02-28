@@ -10,3 +10,4 @@ requests-cache
 retry_requests
 pytesseract
 Pillow
+playwright

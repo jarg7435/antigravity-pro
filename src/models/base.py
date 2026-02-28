@@ -57,6 +57,7 @@ class Team(BaseModel):
     avg_possession: float = 50.0
     form_last_5: List[str] = []
     motivation_level: float = 1.0
+    factor_c: float = 1.0
 
 class MatchConditions(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
@@ -78,6 +79,7 @@ class Referee(BaseModel):
     name: str = "Árbitro Desconocido"
     strictness: RefereeStrictness = RefereeStrictness.MEDIUM
     avg_cards: float = 4.5
+    verification_link: Optional[str] = None
 
 class Match(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
@@ -97,6 +99,8 @@ class Match(BaseModel):
     wyscout_id: Optional[str] = None
     opta_id: Optional[str] = None
     market_odds: Dict[str, float] = {} # e.g. {"1": 1.95, "X": 3.40, "2": 4.10}
+    external_analysis_summary: str = ""
+    factor_c: float = 1.0
 
 class PredictionResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
@@ -127,6 +131,8 @@ class PredictionResult(BaseModel):
     predicted_shots_on_target: str = "0-0"
     
     confidence_score: float = 0.0 # 0-1 metrics
+    factor_c: float = 1.0 # Blindaje IA Confidence Factor
+    elite_reports: List[Dict] = [] # Reports from Elite sources
     external_analysis_summary: str = ""
     referee_name: str = "Autodetectado"
 

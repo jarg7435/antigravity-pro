@@ -11,30 +11,62 @@ class RefereeSourceMapper:
     Maps leagues to their official referee appointment sources.
     """
     
-    BIG_5 = ["La Liga", "Premier League", "Serie A", "Bundesliga", "Ligue 1"]
-    
     LEAGUE_SOURCES = {
         "La Liga": "https://www.rfef.es/noticias/arbitros/designaciones",
-        "Premier League": "https://www.premierleague.com/referees/overview",
-        "Serie A": "https://www.aia-figc.it/designazioni/cana/",
-        "Bundesliga": "https://www.dfb.de/sportl-strukturen/schiedsrichter/ansetzungen/",
-        "Ligue 1": "http://arbitrezvous.blogspot.com/",
+        "Premier League": "https://www.premierleague.com/news/referees",
+        "Serie A": "https://www.aia-figc.it/designazioni",
+        "Bundesliga": "https://datencenter.dfb.de/schiedsrichter",
+        "Ligue 1": "https://www.lfp.fr/arbitres",
     }
     
+    @classmethod
+    def _normalize_league(cls, league: str) -> str:
+        """
+        Normalizes league name for robust matching.
+        """
+        if not league:
+            return ""
+        
+        # Lowercase, strip whitespace, remove common suffixes/prefixes
+        norm = league.lower().strip()
+        
+        # Remove parenthetical info: "La Liga (España)" -> "la liga"
+        if "(" in norm:
+            norm = norm.split("(")[0].strip()
+            
+        # Handle "EA Sports", "Santander", etc.
+        norm = norm.replace("ea sports", "").replace("santander", "").strip()
+        
+        # Map aliases to canonical names
+        if "la liga" in norm or "primera division" in norm or "espana" in norm:
+            return "La Liga"
+        if "premier" in norm or "england" in norm:
+            return "Premier League"
+        if "serie a" in norm or "italy" in norm:
+            return "Serie A"
+        if "bundesliga" in norm or "germany" in norm:
+            return "Bundesliga"
+        if "ligue 1" in norm or "france" in norm:
+            return "Ligue 1"
+            
+        return norm
+
     @classmethod
     def get_scraper(cls, league: str):
         """
         Returns appropriate referee scraper for the league.
         """
-        if league == "La Liga":
+        norm_league = cls._normalize_league(league)
+        
+        if norm_league == "La Liga":
             return LaLigaRefereeScraper()
-        elif league == "Premier League":
+        elif norm_league == "Premier League":
             return PremierLeagueRefereeScraper()
-        elif league == "Serie A":
+        elif norm_league == "Serie A":
             return SerieARefereeScraper()
-        elif league == "Bundesliga":
+        elif norm_league == "Bundesliga":
             return BundesligaRefereeScraper()
-        elif league == "Ligue 1":
+        elif norm_league == "Ligue 1":
             return Ligue1RefereeScraper()
         else:
             # Generic international pool for all other matches (UEFA, Extra, Mixta)
@@ -79,29 +111,99 @@ class BaseRefereeScraper:
             return RefereeStrictness.MEDIUM
 
 
+class FutbolFantasyRefereeScraper(BaseRefereeScraper):
+    """
+    Scraper for FutbolFantasy match pages which often list designated referees.
+    """
+    
+    def fetch_referee(self, home_team: str, away_team: str, match_date: datetime) -> Optional[Dict]:
+        """
+        Fetches referee by finding the match page on FutbolFantasy.
+        """
+        try:
+            # 1. Get the list of matches for the round
+            lineups_url = "https://www.futbolfantasy.com/laliga/posibles-alineaciones"
+            resp = requests.get(lineups_url, headers=self.headers, timeout=10)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            # 2. Find the match URL
+            match_url = None
+            home_slug = home_team.lower().replace(" ", "-") # Basic normalization for URL search
+            away_slug = away_team.lower().replace(" ", "-")
+            
+            # Look for links containing both teams in the URL or text
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if "/partidos/" in href:
+                    if (home_slug in href and away_slug in href) or \
+                       (home_team.lower() in a.get_text().lower() and away_team.lower() in a.get_text().lower()):
+                        match_url = href if href.startswith('http') else f"https://www.futbolfantasy.com{href}"
+                        break
+            
+            if not match_url:
+                print(f"  [!] Could not find match URL for {home_team} vs {away_team} on {lineups_url}")
+                return None
+                
+            # 3. Fetch the match page
+            print(f"  [>] Fetching referee from match page: {match_url}")
+            resp_match = requests.get(match_url, headers=self.headers, timeout=10)
+            resp_match.raise_for_status()
+            soup_match = BeautifulSoup(resp_match.text, 'html.parser')
+            
+            # 4. Extract referee
+            # Structure: <div class="arbitro">Árbitro: <span class="link">Jesús Gil Manzano</span></div>
+            arbitro_div = soup_match.find('div', class_='arbitro')
+            if arbitro_div:
+                ref_span = arbitro_div.find('span', class_='link')
+                if ref_span:
+                    referee_name = ref_span.get_text().strip()
+                    strictness = self._infer_strictness(referee_name)
+                    avg_cards = 5.0 if strictness == RefereeStrictness.HIGH else 3.8
+                    
+                    return {
+                        'name': referee_name,
+                        'strictness': strictness,
+                        'avg_cards': avg_cards,
+                        'source': 'FutbolFantasy',
+                        'verification_link': match_url
+                    }
+            
+            return None
+            
+        except Exception as e:
+            print(f"WARNING: FutbolFantasy scraping failed: {e}")
+            return None
+
+
 class LaLigaRefereeScraper(BaseRefereeScraper):
-    """Scraper for La Liga referees from RFEF."""
+    """Scraper for La Liga referees, prioritizing FutbolFantasy then RFEF."""
+    
+    def __init__(self):
+        super().__init__()
+        self.ff_scraper = FutbolFantasyRefereeScraper()
     
     def fetch_referee(self, home_team: str, away_team: str, match_date: datetime) -> Dict:
         """
-        Scrape RFEF website for La Liga referee appointments.
+        Scrape referee appointments for La Liga.
         """
+        # 1. Try FutbolFantasy (More reliable for specific match scraping)
+        result = self.ff_scraper.fetch_referee(home_team, away_team, match_date)
+        if result:
+            return result
+            
+        # 2. Try RFEF Official (Backup)
         try:
             url = "https://www.rfef.es/noticias/arbitros/designaciones"
             resp = requests.get(url, headers=self.headers, timeout=10)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, 'html.parser')
             
-            # Look for match containing both team names
+            # Pattern matching for RFEF
             home_keywords = home_team.lower().split()
             away_keywords = away_team.lower().split()
             
-            # Search in text content
-            text = soup.get_text().lower()
-            
-            # Find referee name near team mentions
-            # Pattern: "Team A - Team B: Referee Name"
-            pattern = rf'({"|".join(home_keywords)}).*?({"|".join(away_keywords)}).*?:?\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)'
+            pattern = rf'({"|".join(home_keywords)}).*?({"|".join(away_keywords)}).*?:?\s*([A-Z][a-z\u00C0-\u017F]+(?:\s[A-Z][a-z\u00C0-\u017F]+)+)'
             match = re.search(pattern, soup.get_text(), re.IGNORECASE)
             
             if match:
@@ -113,15 +215,14 @@ class LaLigaRefereeScraper(BaseRefereeScraper):
                     'name': referee_name,
                     'strictness': strictness,
                     'avg_cards': avg_cards,
-                    'source': 'RFEF'
+                    'source': 'RFEF Official',
+                    'verification_link': url
                 }
-            
-            # Fallback: return a common La Liga referee
-            return self._fallback_referee()
             
         except Exception as e:
             print(f"⚠️ RFEF scraping failed: {e}")
-            return self._fallback_referee()
+            
+        return self._fallback_referee()
     
     def _fallback_referee(self) -> Dict:
         """Return a realistic La Liga referee as fallback."""
@@ -172,7 +273,8 @@ class PremierLeagueRefereeScraper(BaseRefereeScraper):
                     'name': referee_name,
                     'strictness': strictness,
                     'avg_cards': avg_cards,
-                    'source': 'Premier League Official'
+                    'source': 'Premier League Official',
+                    'verification_link': url
                 }
             
             return self._fallback_referee()
@@ -226,7 +328,8 @@ class SerieARefereeScraper(BaseRefereeScraper):
                     'name': referee_name,
                     'strictness': strictness,
                     'avg_cards': avg_cards,
-                    'source': 'AIA-FIGC'
+                    'source': 'AIA-FIGC Official',
+                    'verification_link': url
                 }
             
             return self._fallback_referee()
@@ -278,7 +381,8 @@ class BundesligaRefereeScraper(BaseRefereeScraper):
                     'name': referee_name,
                     'strictness': strictness,
                     'avg_cards': avg_cards,
-                    'source': 'DFB'
+                    'source': 'DFB Official',
+                    'verification_link': url
                 }
             
             return self._fallback_referee()
@@ -330,7 +434,8 @@ class Ligue1RefereeScraper(BaseRefereeScraper):
                     'name': referee_name,
                     'strictness': strictness,
                     'avg_cards': avg_cards,
-                    'source': 'Arbitrez-Vous'
+                    'source': 'LFP/Arbitrez-Vous',
+                    'verification_link': url
                 }
             
             return self._fallback_referee()
